@@ -1,5 +1,8 @@
-function createElement(type, props, ...children) {
-  console.log(type, props, children)
+const logger = (obj) => (
+  console.log(JSON.stringify(obj, undefined, 1))
+)
+
+const createElement = (type, props, ...children) => {
   return {
     type, // HTMLタグか文字列(TEXT_ELEMENT)
     props: {
@@ -11,7 +14,7 @@ function createElement(type, props, ...children) {
   };
 }
 
-function createTextElement(text) {
+const createTextElement = (text) => {
   return {
     type: "TEXT_ELEMENT",
     props: {
@@ -21,19 +24,30 @@ function createTextElement(text) {
   };
 }
 
-function render(element, container) {
+const render = (element, container) => {
+  // TODO create dom nodes
+  // typeがTEXT_ELEMENTだったら、textNodeを返す
   const dom =
     element.type === "TEXT_ELEMENT"
       ? document.createTextNode("")
-      : document.createElement(element.type);
-  const isProperty = (key) => key !== "children";
+      : document.createElement(element.type)
+
+  // nodeValue, id, class
+  const isProperty = key => key !== 'children'
+
   Object.keys(element.props)
     .filter(isProperty)
-    .forEach((name) => {
-      dom[name] = element.props[name];
-    });
-  element.props.children.forEach((child) => render(child, dom));
-  container.appendChild(dom);
+    .forEach(name => {
+      dom[name] = element.props[name]
+      console.log(name)
+      logger(element.props)
+      logger(element.props[name])
+    })
+
+  element.props.children.forEach(child => {
+    render(child, dom)
+  })
+  container.appendChild(dom)
 }
 
 const Didact = {
@@ -55,6 +69,8 @@ const element = Didact.createElement(
   Didact.createElement('a', null, 'bar'),
   Didact.createElement('b')
 )
+
+logger(element)
 
 const container = document.getElementById('root')
 Didact.render(element, container);
