@@ -1,3 +1,5 @@
+const { DH_NOT_SUITABLE_GENERATOR } = require("node:constants");
+
 const logger = (obj) => (
   console.log(JSON.stringify(obj, undefined, 1))
 )
@@ -24,33 +26,67 @@ const createTextElement = (text) => {
   };
 }
 
-const render = (element, container) => {
+// fiber tree
+// 各要素に1つのファイバーがあり、各ファイバーが作業単位
+
+const createDom = (fiber) => {
   // TODO create dom nodes
   // typeがTEXT_ELEMENTだったら、textNodeを返す
   const dom =
-    element.type === "TEXT_ELEMENT"
+    fiber.type === "TEXT_ELEMENT"
       ? document.createTextNode("")
-      : document.createElement(element.type)
+      : document.createElement(fiber.type)
 
   // nodeValue, id, class
   const isProperty = key => key !== 'children'
 
-  Object.keys(element.props)
+  Object.keys(fiber.props)
     .filter(isProperty)
     .forEach(name => {
-      dom[name] = element.props[name]
+      dom[name] = fiber.props[name]
       console.log(name)
-      logger(element.props)
-      logger(element.props[name])
+      logger(fiber.props)
+      logger(fiber.props[name])
     })
 
-  element.props.children.forEach(child => {
-    render(child, dom)
-  })
-  container.appendChild(dom)
+  return dom
+}
+
+const commitRoot = () => {
+  // add nodes to dom
+  commitWork(wipRoot.child)
+  wipRoot = null
+}
+
+const commitWork = (fiber) => {
+  if (!fiber) {
+    return
+  }
+  const domParent = fiber.parent.dom
+  domParent.appendChild(fiber.dom)
+  commitWork(fiber.child)
+  commitWork(fiber.sibling)
+}
+
+/**
+ * render 関数でルートファイバーを作成し、それを次のユニットオブワークに設定
+ * 残りの作業は performUnitOfWork 関数で行われ、各ファイバーに対して 3 つのことを行う
+ * 1. 要素をDOMに追加する
+ * 2. 要素のchildrenのファイバーを作成する
+ * 3. 次のユニットオブワークを選択する
+ */
+const render = (element, container) => {
+  wipRoot = {
+    dom: container,
+    props: {
+      children: [element]
+    }
+  }
+  nextUnitOfWork = wipRoot
 }
 
 let nextUnitOfWork = null
+let wipRoot = null
 
 const workLoop = (deadline) => {
   let shouldYield = false
@@ -58,13 +94,58 @@ const workLoop = (deadline) => {
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork)
     shouldYield = deadline.timeRemaining() < 1
   }
+
+  if (!nextUnitOfWork && wipRoot) {
+    commitRoot()
+  }
+
   requestIdleCallback(workLoop)
 }
 
 requertIdleCallback(workLoop)
 
+// TODO：これが難しい！
 const performUnitOfWork = (nextUnitOfWork) => {
-  // TODO
+  // 要素をDOMに追加する
+  if (!fiber.dom) {
+    fiber.dom = createDom(fiber)
+  }
+
+  // 要素のchildrenのファイバーを作成する
+  const element = fiber.props.children
+  let index = 0
+  let prevSibling = null
+
+  while (index < elements.length) {
+    const element = elements[index]
+    const newFiber = {
+      type: element.type,
+      props: element.props,
+      parent: fiber,
+      dom: null
+    }
+
+    if (index === 0) {
+      fiber.child = newFiber
+    } else {
+      prevSibling.sibling = newFiber
+    }
+
+    prevSibling = newFiber
+    index++
+  }
+
+  // 次のユニットオブワークを選択する
+  if (fiber.child) {
+    return fiber.child
+  }
+  let nextFiber = fiber
+  while (nextFiber) {
+    if (nextFiber.sibling) {
+      return nextFiber.sibling
+    }
+    nextFiber = nextFiber.parent
+  }
 }
 
 const Didact = {
